@@ -17,15 +17,19 @@ package org.openrewrite.java.security;
 
 import org.openrewrite.ExecutionContext;
 import org.openrewrite.Recipe;
+import org.openrewrite.TreeVisitor;
 import org.openrewrite.java.JavaIsoVisitor;
 import org.openrewrite.java.JavaTemplate;
+import org.openrewrite.java.JavaVisitor;
 import org.openrewrite.java.MethodMatcher;
 import org.openrewrite.java.search.UsesMethod;
 import org.openrewrite.java.tree.J;
+import org.openrewrite.java.tree.JavaSourceFile;
 import org.openrewrite.java.tree.JavaType;
 
 public class SecureTempFileCreation extends Recipe {
-    private static final MethodMatcher matcher = new MethodMatcher("java.io.File createTempFile(..)");
+    private static final MethodMatcher CREATE_TEMP_FILE_MATCHER = new MethodMatcher("java.io.File createTempFile(..)");
+    private static final MethodMatcher NEW_BUFFERED_WRITER_MATCHER = new MethodMatcher("java.io.File newBufferedWriter(java.nio.file.Path)");
 
     @Override
     public String getDisplayName() {
@@ -39,44 +43,63 @@ public class SecureTempFileCreation extends Recipe {
 
     @Override
     protected JavaIsoVisitor<ExecutionContext> getSingleSourceApplicableTest() {
-        return new UsesMethod<>(matcher);
+        return new JavaIsoVisitor<ExecutionContext>() {
+            @Override
+            public JavaSourceFile visitJavaSourceFile(JavaSourceFile cu, ExecutionContext executionContext) {
+                doAfterVisit(new UsesMethod<>(CREATE_TEMP_FILE_MATCHER));
+                doAfterVisit(new UsesMethod<>(NEW_BUFFERED_WRITER_MATCHER));
+                return cu;
+            }
+        };
     }
 
     @Override
-    protected JavaIsoVisitor<ExecutionContext> getVisitor() {
+    protected JavaVisitor<ExecutionContext> getVisitor() {
         return new JavaIsoVisitor<ExecutionContext>() {
-            private final JavaTemplate twoArg = JavaTemplate.builder(this::getCursor, "Files.createTempFile(#{any(String)}, #{any(String)}).toFile()")
-                    .imports("java.nio.file.Files")
-                    .build();
-
-            private final JavaTemplate threeArg = JavaTemplate.builder(this::getCursor, "Files.createTempFile(#{any(java.io.File)}.toPath(), #{any(String)}, #{any(String)}).toFile()")
-                    .imports("java.nio.file.Files")
-                    .build();
-
             @Override
-            public J.MethodInvocation visitMethodInvocation(J.MethodInvocation method, ExecutionContext executionContext) {
-                J.MethodInvocation m = method;
-                if (matcher.matches(m)) {
-                    maybeAddImport("java.nio.file.Files");
-                    if (m.getArguments().size() == 2 || (m.getArguments().size() == 3 && m.getArguments().get(2).getType() == JavaType.Primitive.Null)) {
-                        // File.createTempFile(String prefix, String suffix)
-                        m = m.withTemplate(twoArg,
-                                m.getCoordinates().replace(),
-                                m.getArguments().get(0),
-                                m.getArguments().get(1)
-                        );
-                    } else if (m.getArguments().size() == 3) {
-                        // File.createTempFile(String prefix, String suffix, File dir)
-                        m = m.withTemplate(threeArg,
-                                m.getCoordinates().replace(),
-                                m.getArguments().get(2),
-                                m.getArguments().get(0),
-                                m.getArguments().get(1)
-                        );
-                    }
-                }
-                return m;
+            public JavaSourceFile visitJavaSourceFile(JavaSourceFile cu, ExecutionContext executionContext) {
+                doAfterVisit(new SecureTempFileVisitor());
+                doAfterVisit(new SecureBufferedWriterVisitor());
+                return cu;
             }
         };
+    }
+
+    private static class SecureBufferedWriterVisitor extends JavaIsoVisitor<ExecutionContext> {
+    }
+
+    private static class SecureTempFileVisitor extends JavaIsoVisitor<ExecutionContext> {
+        private final JavaTemplate twoArg = JavaTemplate.builder(this::getCursor, "Files.createTempFile(#{any(String)}, #{any(String)}).toFile()")
+                .imports("java.nio.file.Files")
+                .build();
+
+        private final JavaTemplate threeArg = JavaTemplate.builder(this::getCursor, "Files.createTempFile(#{any(java.io.File)}.toPath(), #{any(String)}, #{any(String)}).toFile()")
+                .imports("java.nio.file.Files")
+                .build();
+
+        @Override
+        public J.MethodInvocation visitMethodInvocation(J.MethodInvocation method, ExecutionContext executionContext) {
+            J.MethodInvocation m = method;
+            if (CREATE_TEMP_FILE_MATCHER.matches(m)) {
+                maybeAddImport("java.nio.file.Files");
+                if (m.getArguments().size() == 2 || (m.getArguments().size() == 3 && m.getArguments().get(2).getType() == JavaType.Primitive.Null)) {
+                    // File.createTempFile(String prefix, String suffix)
+                    m = m.withTemplate(twoArg,
+                            m.getCoordinates().replace(),
+                            m.getArguments().get(0),
+                            m.getArguments().get(1)
+                    );
+                } else if (m.getArguments().size() == 3) {
+                    // File.createTempFile(String prefix, String suffix, File dir)
+                    m = m.withTemplate(threeArg,
+                            m.getCoordinates().replace(),
+                            m.getArguments().get(2),
+                            m.getArguments().get(0),
+                            m.getArguments().get(1)
+                    );
+                }
+            }
+            return m;
+        }
     }
 }

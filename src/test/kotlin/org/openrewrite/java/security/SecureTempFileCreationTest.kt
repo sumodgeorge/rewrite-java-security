@@ -94,4 +94,37 @@ class SecureTempFileCreationTest : JavaRecipeTest {
         """
     )
 
+    @Test
+    fun vulnerableFileCreateTempFilesNewBufferedWriter() = assertChanged(
+        before = """
+            import java.io.BufferedWriter;
+            import java.io.File;
+            import java.io.IOException;
+            import java.nio.file.Files;
+            
+            class T {
+                void vulnerableFileCreateTempFilesNewBufferedWriter() throws IOException {
+                    Path tempDirChild = new File(System.getProperty("java.io.tmpdir"), "/child-buffered-writer.txt").toPath();
+                    BufferedWriter bw = Files.newBufferedWriter(tempDirChild);
+                }
+            }
+        """,
+        after = """
+            import java.io.BufferedWriter;
+            import java.io.File;
+            import java.io.IOException;
+            import java.nio.file.Files;
+            import java.nio.file.attribute.PosixFilePermission;
+            import java.nio.file.attribute.PosixFilePermissions;
+
+            class T {
+                void vulnerableFileCreateTempFilesNewBufferedWriter()  throws IOException  {
+                    Path tempDirChild = new File(System.getProperty("java.io.tmpdir"), "/child-buffered-writer.txt").toPath();
+                    Files.createFile(tempDirChild, PosixFilePermissions.asFileAttribute(EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE)));
+                    BufferedWriter bw = Files.newBufferedWriter(tempDirChild);
+                }
+            }
+        """
+    )
+
 }
