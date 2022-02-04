@@ -21,8 +21,10 @@ import org.openrewrite.Recipe;
 import org.openrewrite.internal.lang.Nullable;
 import org.openrewrite.java.JavaIsoVisitor;
 import org.openrewrite.java.JavaTemplate;
+import org.openrewrite.java.JavaVisitor;
 import org.openrewrite.java.MethodMatcher;
 import org.openrewrite.java.marker.JavaVersion;
+import org.openrewrite.java.search.UsesMethod;
 import org.openrewrite.java.tree.*;
 
 import java.time.Duration;
@@ -52,10 +54,17 @@ public class UseFilesCreateTempDirectory extends Recipe {
         return Duration.ofMinutes(10);
     }
 
-//    @Override
-//    protected UsesMethod<ExecutionContext> getSingleSourceApplicableTest() {
-//        return new UsesMethod<>("java.io.File createTempFile(..)");
-//    }
+    @Override
+    protected JavaVisitor<ExecutionContext> getSingleSourceApplicableTest() {
+        return new JavaVisitor<ExecutionContext>() {
+            @Override
+            public J visitJavaSourceFile(JavaSourceFile cu, ExecutionContext executionContext) {
+                doAfterVisit(new UsesMethod<>("java.io.File createTempFile(..)"));
+                doAfterVisit(new UsesMethod<>("java.io.File mkdir(..)"));
+                return super.visitJavaSourceFile(cu, executionContext);
+            }
+        };
+    }
 
     @Override
     protected UsesFilesCreateTempDirVisitor getVisitor() {
