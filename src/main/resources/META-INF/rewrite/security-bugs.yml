@@ -25,3 +25,16 @@ recipeList:
   - org.openrewrite.java.security.UseFilesCreateTempDirectory
   - org.openrewrite.java.security.SecureTempFileCreation
   - org.openrewrite.java.cleanup.NoEqualityInForCondition
+
+---
+type: specs.openrewrite.org/v1beta/recipe
+name: org.openrewrite.java.security.TempDirectoryVulnerabilities
+displayName: Fix Java Temp File Hijacking vulnerabilities
+description: Opening temporary files without appropriate measures or controls can leave the file, its contents and any function that it impacts vulnerable to attack.
+tags:
+  - security
+  - CWE-378
+recipeList:
+  - org.openrewrite.java.security.UseFilesCreateTempDirectory
+  - org.openrewrite.java.security.SecureTempFileCreation
+  - org.openrewrite.java.migrate.guava.NoGuavaCreateTempDir

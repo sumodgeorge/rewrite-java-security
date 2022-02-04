@@ -99,6 +99,7 @@ dependencies {
     runtimeOnly("org.springframework.security:spring-security-config:latest.release")
     runtimeOnly("org.springframework.security:spring-security-web:latest.release")
     runtimeOnly("jakarta.servlet:jakarta.servlet-api:4.+")
+    runtimeOnly("org.openrewrite.recipe:rewrite-migrate-java:${rewriteVersion}")
 
     // eliminates "unknown enum constant DeprecationLevel.WARNING" warnings from the build log
     // see https://github.com/gradle/kotlin-dsl-samples/issues/1301 for why (okhttp is leaking parts of kotlin stdlib)
@@ -121,6 +122,7 @@ dependencies {
     testRuntimeOnly("org.openrewrite:rewrite-java-8:${rewriteVersion}")
 
     testRuntimeOnly("com.fasterxml.jackson.core:jackson-databind:latest.release")
+    testRuntimeOnly("io.vavr:vavr:latestRelease")
 }
 
 tasks.withType(KotlinCompile::class.java).configureEach {
