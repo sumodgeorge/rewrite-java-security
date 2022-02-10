@@ -14,22 +14,25 @@ class PreventTempDirectoryHijackingTest : JavaRecipeTest {
             import java.io.IOException;
             // does not check mkdir return and will continue even if dir already exists
             class T {
-                void vulnerableFileCreateTempFileMkdirTainted() throws Exception {
+                void vulnerableFileCreateTempFileMkdirTainted() throws IOException {
                     File tempDirChild = new File(System.getProperty("java.io.tmpdir"), "/child");
                     tempDirChild.mkdir();
+                    // Assume that tempDirChild is used later
                 }
             }
         """,
         after = """
             import java.io.File;
+            import java.io.IOException;
+            import java.io.UncheckedIOException;
             import java.nio.file.Files;
+            import java.nio.file.attribute.FileAttribute;
             import java.nio.file.attribute.PosixFilePermission;
             import java.nio.file.attribute.PosixFilePermissions;
-            import java.util.UUID;
             import java.util.EnumSet;
             
             class T {
-                void vulnerableFileCreateTempFileMkdirTainted() throws Exception {
+                void vulnerableFileCreateTempFileMkdirTainted() throws IOException {
                     File tempDirChild = new File(System.getProperty("java.io.tmpdir"), "/child");
                     PreventTempDirHijackingHelper.createTempDir(tempDirChild.toPath());
                 }
@@ -92,7 +95,6 @@ class PreventTempDirectoryHijackingTest : JavaRecipeTest {
             import java.nio.file.Files;
             import java.nio.file.attribute.PosixFilePermission;
             import java.nio.file.attribute.PosixFilePermissions;
-            import java.util.UUID;
             import java.util.EnumSet;
             
             class T {
