@@ -2,22 +2,26 @@ package org.openrewrite.java.security
 
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
+import org.openrewrite.Recipe
 import org.openrewrite.java.JavaRecipeTest
+import org.openrewrite.java.security.tempfile.PreventTempDirectoryHijackingVisitor
 
 class PreventTempDirectoryHijackingTest : JavaRecipeTest {
 
+    override val recipe: Recipe
+        get() = toRecipe { PreventTempDirectoryHijackingVisitor() }
+
     @Suppress("ResultOfMethodCallIgnored", "RedundantThrows")
     @Test
-    fun vulnerableFileCreateTempFileMkdirTainted() = assertChanged(
+    fun `vulnerable does not check mkdir return and continues if dir already exists`() = assertChanged(
         before = """
             import java.io.File;
-            import java.io.IOException;
-            // does not check mkdir return and will continue even if dir already exists
             class T {
-                void vulnerableFileCreateTempFileMkdirTainted() throws IOException {
+                // recipe assumes that tempDirChild is used later
+                // and the dir should have a predictable path
+                void vulnerableFileCreateTempFileMkdirTainted() {
                     File tempDirChild = new File(System.getProperty("java.io.tmpdir"), "/child");
                     tempDirChild.mkdir();
-                    // Assume that tempDirChild is used later
                 }
             }
         """,
@@ -26,18 +30,20 @@ class PreventTempDirectoryHijackingTest : JavaRecipeTest {
             import java.io.IOException;
             import java.io.UncheckedIOException;
             import java.nio.file.Files;
-            import java.nio.file.attribute.FileAttribute;
+            import java.nio.file.Path;
             import java.nio.file.attribute.PosixFilePermission;
             import java.nio.file.attribute.PosixFilePermissions;
             import java.util.EnumSet;
             
             class T {
-                void vulnerableFileCreateTempFileMkdirTainted() throws IOException {
+                // recipe assumes that tempDirChild is used later
+                // and the dir should have a predictable path
+                void vulnerableFileCreateTempFileMkdirTainted() {
                     File tempDirChild = new File(System.getProperty("java.io.tmpdir"), "/child");
-                    PreventTempDirHijackingHelper.createTempDir(tempDirChild.toPath());
+                    SecureTempFileHelper.createTempDir(tempDirChild.toPath());
                 }
 
-                private static class PreventTempDirHijackingHelper {
+                private static class SecureTempFileHelper {
                     static void createTempDir(Path tempDirChild) {
                         try {
                             if (tempDirChild.getFileSystem().supportedFileAttributeViews().contains("posix")) {
@@ -46,9 +52,9 @@ class PreventTempDirectoryHijackingTest : JavaRecipeTest {
                                 // This is not necessary on Windows, each user has their own temp directory
                                 final EnumSet<PosixFilePermission> posixFilePermissions =
                                         EnumSet.of(
-                                            PosixFilePermission.OWNER_READ, 
-                                            PosixFilePermission.OWNER_WRITE,
-                                            PosixFilePermission.OWNER_EXECUTE
+                                                PosixFilePermission.OWNER_READ,
+                                                PosixFilePermission.OWNER_WRITE,
+                                                PosixFilePermission.OWNER_EXECUTE
                                         );
                                 if (!Files.exists(tempDirChild)) {
                                     Files.createDirectory(
